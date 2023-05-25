@@ -40,7 +40,7 @@ plt.grid()
 plt.show()
 
 """
-- [] Plotar solução homogenea;
+- [] Plotar solução Homogenea;
 - [] Plotar Solução Particular;
 - [] Revisar Solução analítica;
 - [] Melhorar os plots;
