@@ -7,7 +7,7 @@ MASS = 1  # [kg]
 X_0 = 0.7  # [m]
 X_DOT_0 = 30  # [m / s]
 
-DELTA_T = 0.02 # [s]
+DELTA_T = 0.002 # [s]
 t_f = 5 # [s]
 F_0 = -100
 w = 50
