@@ -29,6 +29,8 @@ def ksi(mass: float, k: float, c: float) -> float:
     return c / (2 * np.sqrt(k * mass))
 
 
+
+
 def w_n(mass: float, k: float) -> float:
     """This functions calculates the natural frequency of the system
 
@@ -55,7 +57,7 @@ def w_d(ksi: float, w_n):
     return np.sqrt(1 - ksi**2) * w_n
 
 
-def constants(x_0: float, x_dot_0: float, ksi: float, w_n: float) -> Tuple[float]:
+def constants(x_0: float, x_dot_0: float, ksi: float, w_n: float, mass: float) -> Tuple[float]:
     """This function determinates the coefficients of the homogeneous solution
     of the motion equation
 
@@ -68,34 +70,58 @@ def constants(x_0: float, x_dot_0: float, ksi: float, w_n: float) -> Tuple[float
     Returns:
         Tuple[float]: coefficients of the homogeneous solution
     """
-    c_1 = x_0
-    c_2 = (x_dot_0 + ksi * w_n * x_0) / (np.sqrt(1 - ksi ** 2) * w_n)
+    Amp = F_0 / (np.sqrt((k - mass * w ** 2) ** 2 + (c * w) ** 2))
+    phi = np.arctan(c * w / (k - mass * w ** 2)) + np.pi
+    c_1 = x_0 - Amp*np.cos(-phi)
+    c_2 = (x_dot_0  + Amp* w * np.sin(-phi) + ksi * w_n * c_1) / (np.sqrt(1 - ksi ** 2) * w_n)
     return (c_1, c_2)
 
 
 def x_h(t: List[float], ksi: float, w_n: float, w_d: float, constants: Tuple[int]) -> List[float]:
     c_1, c_2 = constants
-
+    Amp_xh = np.sqrt(X_0 ** 2 + (ksi * w_n * X_0 / w_d)**2)
+    phi_xh = np.arctan((X_DOT_0 + ksi * w_n * X_0) / (w_d * X_0))
+    # return [Amp_xh * np.exp(-ksi * w_n * time) * np.cos(w_d*time - phi_xh) for time in t]   #desse jeito está dando errado
     return [np.exp(-ksi * w_n * time) * (c_1 * np.cos(w_d * time) + c_2 * np.sin(w_d * time)) for time in t]
 
 
 def x_p(t: List[float], F_0: float, mass: float, k: float, c: float, w: float) -> List[float]:
 
-    C = F_0 / np.sqrt((k - mass * w ** 2) ** 2 + (c * w) ** 2)
+    Amp = F_0 / (np.sqrt((k - mass * w ** 2) ** 2 + (c * w) ** 2))
+    phi = np.arctan(c * w / (k - mass * w ** 2)) + np.pi
 
-    return C * np.cos(w * t - np.arctan(c * w / (k - mass * w ** 2)))
+    return Amp, phi, [Amp * np.cos(w * time - phi) for time in t]
+
 
 
 def analytical_solution(x_h: np.array, x_p: np.array) -> Dict[float, float]:
     resp = [x_h[i] + x_p[i] for i in range(len(x_h))]
     x = {t: resp[i] for i, t in enumerate(np.arange(0, t_f+DELTA_T, DELTA_T))}
 
-    return x
+    return resp, x 
 
 
-def conv_solution(f: List[float], g: List[float]):
 
-    return np.convolve(f, g)
+def conv_solution(t: List[float], ksi: float, w_n: float, w_d: float, constants: Tuple[int]) -> List[float]:
+
+    f_t = [F_0*np.cos(w * time) for time in t] 
+
+    g_t = [(np.exp(-ksi*w_n*time) * np.sin(w_d*time))/(MASS*w_d) for time in t]
+    xp_conv = np.convolve(f_t, g_t) * DELTA_T
+
+    # to find C_1 and C_2 we do x_tot(0) = 0.7 and x_dot_tot(0) = 30, in equations:
+    # x(0) = x_hom(0) + xp_conv(0) = 0.7
+    # x_dot(0) = x_dot_hom(0) + xp_dot_conv(0) = 30, and we can approximate xp_dot_conv by: xp_dot_conv(x) = (xp_conv(t+dt) - xp_conv(t))/dt
+
+    c_1_conv = X_0 - xp_conv[0]
+    c_2_conv = (X_DOT_0 + c_1_conv * ksi * w_n) / w_d   #CHECK THIS EQUATION
+    x_h_conv = [np.exp(-ksi * w_n * time) * (c_1_conv * np.cos(w_d * time) + c_2_conv * np.sin(w_d * time)) for time in t]
+    x_tot = np.add(xp_conv[:len(x_h_conv)], x_h_conv)
+    print('constants for convolution method:({0}, {1})'.format(c_1_conv, c_2_conv))
+   
+
+
+    return x_tot
 
 
 def x_dot_t(x, t: List[float], delta_t: float) -> List[float]:
