@@ -94,35 +94,57 @@ def x_p(t: List[float], F_0: float, mass: float, k: float, c: float, w: float) -
 
 
 
-def analytical_solution(x_h: np.array, x_p: np.array) -> Dict[float, float]:
+def analytical_solution(x_h: np.array, x_p: np.array, deltaT) -> Dict[float, float]:
     resp = [x_h[i] + x_p[i] for i in range(len(x_h))]
-    x = {t: resp[i] for i, t in enumerate(np.arange(0, t_f+DELTA_T, DELTA_T))}
+    x = {t: resp[i] for i, t in enumerate(np.arange(0, t_f+deltaT, deltaT))}
 
     return resp, x 
 
 
 
-def conv_solution(t: List[float], ksi: float, w_n: float, w_d: float, constants: Tuple[int]) -> List[float]:
+def conv_solution(tt: List[float], ksi: float, w_n: float, w_d: float, constants: Tuple[int], deltaT) -> List[float]:
 
-    f_t = [F_0*np.cos(w * time) for time in t] 
+    f_t = [F_0*np.cos(w * time) for time in tt] 
 
-    g_t = [(np.exp(-ksi*w_n*time) * np.sin(w_d*time))/(MASS*w_d) for time in t]
-    xp_conv = np.convolve(f_t, g_t) * DELTA_T
+    g_t = [(np.exp(-ksi*w_n*time) * np.sin(w_d*time))/(MASS*w_d) for time in tt]
+    xp_conv = np.convolve(f_t, g_t) * deltaT
 
     # to find C_1 and C_2 we do x_tot(0) = 0.7 and x_dot_tot(0) = 30, in equations:
     # x(0) = x_hom(0) + xp_conv(0) = 0.7
     # x_dot(0) = x_dot_hom(0) + xp_dot_conv(0) = 30, and we can approximate xp_dot_conv by: xp_dot_conv(x) = (xp_conv(t+dt) - xp_conv(t))/dt
 
     c_1_conv = X_0 - xp_conv[0]
-    c_2_conv = (X_DOT_0 + c_1_conv * ksi * w_n) / w_d   #CHECK THIS EQUATION
-    x_h_conv = [np.exp(-ksi * w_n * time) * (c_1_conv * np.cos(w_d * time) + c_2_conv * np.sin(w_d * time)) for time in t]
+    x_dot_0_xp_conv = (xp_conv[1] - xp_conv[0])/deltaT
+    c_2_conv = (X_DOT_0 + c_1_conv * ksi * w_n + x_dot_0_xp_conv) / w_d   ####CHECK THIS EQUATION
+    x_h_conv = [np.exp(-ksi * w_n * time) * (c_1_conv * np.cos(w_d * time) + c_2_conv * np.sin(w_d * time)) for time in tt]
     x_tot = np.add(xp_conv[:len(x_h_conv)], x_h_conv)
-    print('constants for convolution method:({0}, {1})'.format(c_1_conv, c_2_conv))
+    # print('constants for convolution method:({0}, {1})'.format(c_1_conv, c_2_conv))
    
 
 
     return x_tot
 
+def FDM_solver(deltat, t_final):
+    tt = [i for i in np.arange(0, t_final+deltat, deltat)]
+    x_t_old = X_0
+
+    x_t = X_DOT_0 * deltat + x_t_old
+    FDM_solution = [x_t_old, x_t]
+
+    for time in tt[2:]:  
+        kt = k * x_t
+        ct = c * ((x_t - x_t_old) / deltat)
+
+        x_next = (
+    (force(time) - kt - ct) * (deltat**2 / MASS) 
+        + 2 * x_t - x_t_old
+        )
+
+        FDM_solution.append(x_next)
+
+        x_t_old = x_t
+        x_t = x_next
+    return FDM_solution, tt
 
 def x_dot_t(x, t: List[float], delta_t: float) -> List[float]:
 
@@ -132,3 +154,14 @@ def x_dot_t(x, t: List[float], delta_t: float) -> List[float]:
 def x_ddot_t(x, t: List[float], delta_t: float) -> List[float]:
 
     return [(x(time + delta_t) - 2 * x(time) + x(time - delta_t)) / (delta_t ** 2) for time in t]
+
+
+def maximum_diff(time, method1, method2):
+    max_diff = 0
+    temp_time = 0
+    for i in range(len(time)):
+        temp_diff = abs(method1[i] - method2[i])
+        if temp_diff >= max_diff:
+            max_diff = temp_diff
+            temp_time = time[i]
+    return temp_time, max_diff
